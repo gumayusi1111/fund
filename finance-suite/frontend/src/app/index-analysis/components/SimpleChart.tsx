@@ -13,7 +13,7 @@ interface SimpleChartProps {
 export default function SimpleChart({
   data,
   loading = false,
-  height = 400
+  height = 500
 }: SimpleChartProps) {
   // 转换数据格式用于图表显示
   const chartData = useMemo(() => {
@@ -34,8 +34,8 @@ export default function SimpleChart({
     }));
   }, [data]);
 
-  // 计算统计信息
-  const statistics = useMemo(() => {
+  // 计算统计信息和图表参数
+  const chartInfo = useMemo(() => {
     if (chartData.length === 0) return null;
 
     const values = chartData.map(d => d.value);
@@ -45,11 +45,29 @@ export default function SimpleChart({
     const lastValue = values[values.length - 1];
     const totalReturn = ((lastValue - firstValue) / firstValue) * 100;
 
+    // 计算Y轴刻度
+    const range = maxValue - minValue;
+    const padding = range * 0.1;
+    const yMin = minValue - padding;
+    const yMax = maxValue + padding;
+    
+    // 生成Y轴刻度值
+    const yTicks = [];
+    const tickCount = 6;
+    const tickStep = (yMax - yMin) / (tickCount - 1);
+    for (let i = 0; i < tickCount; i++) {
+      yTicks.push(yMin + tickStep * i);
+    }
+
     return {
       minValue,
       maxValue,
+      yMin,
+      yMax,
+      yTicks,
       totalReturn,
-      dataPoints: chartData.length
+      dataPoints: chartData.length,
+      isPositive: lastValue >= firstValue
     };
   }, [chartData]);
 
@@ -78,127 +96,237 @@ export default function SimpleChart({
     );
   }
 
+  if (!chartInfo) {
+    return null;
+  }
+
+  // 图表尺寸参数
+  const margins = { top: 20, right: 80, bottom: 60, left: 80 };
+  const chartWidth = 1000;
+  const chartHeight = height - margins.top - margins.bottom;
+
+  // 计算坐标点
+  const points = chartData.map((point, index) => {
+    const x = margins.left + (index / (chartData.length - 1)) * (chartWidth - margins.left - margins.right);
+    const y = margins.top + ((chartInfo.yMax - point.value) / (chartInfo.yMax - chartInfo.yMin)) * chartHeight;
+    return { x, y, data: point };
+  });
+
+  // 创建路径
+  const linePath = points.reduce((path, point, index) => {
+    return path + (index === 0 ? `M ${point.x} ${point.y}` : ` L ${point.x} ${point.y}`);
+  }, '');
+
+  // 创建渐变区域路径
+  const areaPath = linePath + ` L ${points[points.length - 1].x} ${height - margins.bottom} L ${margins.left} ${height - margins.bottom} Z`;
+
+  // 计算X轴标签 - 显示5-7个时间点
+  const xLabelCount = Math.min(7, Math.max(5, Math.floor(chartData.length / 10)));
+  const xLabelStep = Math.floor(chartData.length / (xLabelCount - 1));
+  const xLabels = [];
+  for (let i = 0; i < xLabelCount - 1; i++) {
+    const index = i * xLabelStep;
+    xLabels.push({ x: points[index].x, label: chartData[index].date });
+  }
+  // 确保最后一个标签
+  xLabels.push({ 
+    x: points[points.length - 1].x, 
+    label: chartData[chartData.length - 1].date 
+  });
+
   return (
     <div className="w-full">
-      {/* 图表标题 */}
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {data.name} ({data.code}) 走势图
-        </h3>
-        <p className="text-sm text-gray-600">
-          数据点数: {chartData.length} | 时间范围: {chartData[0]?.fullDate} 至 {chartData[chartData.length - 1]?.fullDate}
-        </p>
-      </div>
-
-      {/* 简单的SVG图表 */}
-      <div className="w-full bg-white rounded-lg border border-gray-200 p-4">
+      {/* 图表容器 */}
+      <div className="w-full bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="w-full overflow-x-auto">
-          <svg width="100%" height={height} className="min-w-full">
-            {/* 背景网格 */}
+          <svg width={chartWidth} height={height} className="min-w-full">
+            {/* 定义渐变 */}
             <defs>
-              <pattern id="grid" width="50" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" strokeWidth="1"/>
-              </pattern>
+              <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor={chartInfo.isPositive ? "#10B981" : "#EF4444"} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={chartInfo.isPositive ? "#10B981" : "#EF4444"} stopOpacity="0.02" />
+              </linearGradient>
+              <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+                <feOffset dx="0" dy="1" result="offsetblur"/>
+                <feComponentTransfer>
+                  <feFuncA type="linear" slope="0.1"/>
+                </feComponentTransfer>
+                <feMerge>
+                  <feMergeNode/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
             </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-            
-            {/* 绘制价格线 */}
-            {statistics && (
-              <g>
-                {/* 计算坐标 */}
-                {(() => {
-                  const padding = 40;
-                  const chartWidth = 800; // 固定宽度
-                  const chartHeight = height - padding * 2;
-                  const xStep = (chartWidth - padding * 2) / (chartData.length - 1);
-                  const yScale = chartHeight / (statistics.maxValue - statistics.minValue);
-                  
-                  const points = chartData.map((point, index) => ({
-                    x: padding + index * xStep,
-                    y: padding + (statistics.maxValue - point.value) * yScale
-                  }));
 
-                  const pathD = points.reduce((path, point, index) => {
-                    return path + (index === 0 ? `M ${point.x} ${point.y}` : ` L ${point.x} ${point.y}`);
-                  }, '');
+            {/* 背景网格 */}
+            <g>
+              {/* 水平网格线 */}
+              {chartInfo.yTicks.map((tick, index) => {
+                const y = margins.top + ((chartInfo.yMax - tick) / (chartInfo.yMax - chartInfo.yMin)) * chartHeight;
+                return (
+                  <g key={index}>
+                    <line
+                      x1={margins.left}
+                      y1={y}
+                      x2={chartWidth - margins.right}
+                      y2={y}
+                      stroke="#E5E7EB"
+                      strokeWidth="1"
+                      strokeDasharray={index === 0 || index === chartInfo.yTicks.length - 1 ? "0" : "3,3"}
+                    />
+                    <text
+                      x={margins.left - 10}
+                      y={y + 5}
+                      fill="#6B7280"
+                      fontSize="12"
+                      textAnchor="end"
+                    >
+                      {tick.toFixed(0)}
+                    </text>
+                  </g>
+                );
+              })}
 
-                  return (
-                    <>
-                      {/* 价格线 */}
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke="#3B82F6"
-                        strokeWidth="2"
-                        className="drop-shadow-sm"
-                      />
-                      
-                                             {/* 数据点 */}
-                       {points.map((point, index) => (
-                         <circle
-                           key={index}
-                           cx={point.x}
-                           cy={point.y}
-                           r="3"
-                           fill="#3B82F6"
-                           className="hover:r-5 transition-all duration-200 cursor-pointer"
-                         >
-                           <title>{`${chartData[index].fullDate}: ${chartData[index].value.toFixed(2)}`}</title>
-                         </circle>
-                       ))}
-                      
-                      {/* Y轴标签 */}
-                      <text x="10" y={padding} fill="#6b7280" fontSize="12">
-                        {statistics.maxValue.toFixed(0)}
-                      </text>
-                      <text x="10" y={height - padding} fill="#6b7280" fontSize="12">
-                        {statistics.minValue.toFixed(0)}
-                      </text>
-                      
-                      {/* X轴标签 */}
-                      <text x={padding} y={height - 10} fill="#6b7280" fontSize="12">
-                        {chartData[0]?.date}
-                      </text>
-                      <text x={chartWidth - padding} y={height - 10} fill="#6b7280" fontSize="12" textAnchor="end">
-                        {chartData[chartData.length - 1]?.date}
-                      </text>
-                    </>
-                  );
-                })()}
+              {/* 垂直网格线 */}
+              {xLabels.map((label, index) => (
+                <line
+                  key={index}
+                  x1={label.x}
+                  y1={margins.top}
+                  x2={label.x}
+                  y2={height - margins.bottom}
+                  stroke="#E5E7EB"
+                  strokeWidth="1"
+                  strokeDasharray="3,3"
+                />
+              ))}
+            </g>
+
+            {/* 渐变区域 */}
+            <path
+              d={areaPath}
+              fill="url(#areaGradient)"
+            />
+
+            {/* 价格线 */}
+            <path
+              d={linePath}
+              fill="none"
+              stroke={chartInfo.isPositive ? "#10B981" : "#EF4444"}
+              strokeWidth="2.5"
+              filter="url(#shadow)"
+            />
+
+            {/* 数据点 */}
+            {points.map((point, index) => (
+              <g key={index}>
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r="0"
+                  fill={chartInfo.isPositive ? "#10B981" : "#EF4444"}
+                  className="chart-dot"
+                >
+                  <animate
+                    attributeName="r"
+                    values="0;3;0"
+                    dur="0.3s"
+                    begin="mouseover"
+                    fill="freeze"
+                  />
+                </circle>
+                {/* 鼠标悬停区域 */}
+                <rect
+                  x={point.x - 20}
+                  y={margins.top}
+                  width="40"
+                  height={chartHeight}
+                  fill="transparent"
+                  className="cursor-pointer"
+                >
+                  <title>
+                    {`日期: ${point.data.fullDate}\n`}
+                    {`收盘: ${point.data.value.toFixed(2)}\n`}
+                    {`开盘: ${point.data.open.toFixed(2)}\n`}
+                    {`最高: ${point.data.high.toFixed(2)}\n`}
+                    {`最低: ${point.data.low.toFixed(2)}\n`}
+                    {`涨跌幅: ${point.data.changePercent?.toFixed(2) || 0}%`}
+                  </title>
+                </rect>
               </g>
-            )}
+            ))}
+
+            {/* X轴标签 */}
+            {xLabels.map((label, index) => (
+              <text
+                key={index}
+                x={label.x}
+                y={height - margins.bottom + 20}
+                fill="#6B7280"
+                fontSize="12"
+                textAnchor="middle"
+              >
+                {label.label}
+              </text>
+            ))}
+
+            {/* Y轴标题 */}
+            <text
+              x={20}
+              y={margins.top + chartHeight / 2}
+              fill="#6B7280"
+              fontSize="14"
+              textAnchor="middle"
+              transform={`rotate(-90 20 ${margins.top + chartHeight / 2})`}
+            >
+              指数点位
+            </text>
+
+            {/* X轴标题 */}
+            <text
+              x={chartWidth / 2}
+              y={height - 10}
+              fill="#6B7280"
+              fontSize="14"
+              textAnchor="middle"
+            >
+              日期
+            </text>
+
+            {/* 当前值标注 */}
+            <g>
+              <rect
+                x={chartWidth - margins.right + 10}
+                y={points[points.length - 1].y - 10}
+                width="60"
+                height="20"
+                fill={chartInfo.isPositive ? "#10B981" : "#EF4444"}
+                rx="4"
+              />
+              <text
+                x={chartWidth - margins.right + 40}
+                y={points[points.length - 1].y + 3}
+                fill="white"
+                fontSize="12"
+                textAnchor="middle"
+                fontWeight="bold"
+              >
+                {chartData[chartData.length - 1].value.toFixed(2)}
+              </text>
+            </g>
           </svg>
         </div>
       </div>
 
-      {/* 统计信息 */}
-      {statistics && (
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs text-gray-600">总收益率</p>
-            <p className={`text-lg font-semibold ${statistics.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {statistics.totalReturn.toFixed(2)}%
-            </p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs text-gray-600">数据点数</p>
-            <p className="text-lg font-semibold text-gray-900">{statistics.dataPoints}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs text-gray-600">最高点</p>
-            <p className="text-lg font-semibold text-gray-900">{statistics.maxValue.toFixed(2)}</p>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <p className="text-xs text-gray-600">最低点</p>
-            <p className="text-lg font-semibold text-gray-900">{statistics.minValue.toFixed(2)}</p>
-          </div>
-        </div>
-      )}
-
-      {/* 图表说明 */}
-      <div className="mt-4 text-xs text-gray-500">
-        <p>💡 提示：这是一个简化的图表组件。将鼠标悬停在数据点上可查看详细信息。</p>
-      </div>
+      <style jsx>{`
+        .chart-dot {
+          transition: all 0.3s ease;
+        }
+        .chart-dot:hover {
+          r: 5;
+        }
+      `}</style>
     </div>
   );
 } 

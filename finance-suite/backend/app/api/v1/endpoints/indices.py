@@ -57,7 +57,7 @@ async def search_indices(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"搜索指数失败: {str(e)}")
 
-@router.get("/{index_code}", response_model=IndexInfo)
+@router.get("/{index_code}", response_model=dict)
 async def get_index_info(
     index_code: str,
     service: IndexService = Depends(get_index_service)
@@ -67,11 +67,15 @@ async def get_index_info(
         index_info = await service.get_index_info(index_code)
         if not index_info:
             raise HTTPException(status_code=404, detail="指数不存在")
-        return index_info
+        return {
+            "success": True,
+            "data": index_info,
+            "message": "获取指数信息成功"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取指数信息失败: {str(e)}")
 
-@router.get("/{index_code}/info", response_model=IndexInfo)
+@router.get("/{index_code}/info", response_model=dict)
 async def get_index_info_detailed(
     index_code: str,
     service: IndexService = Depends(get_index_service)
@@ -81,11 +85,15 @@ async def get_index_info_detailed(
         index_info = await service.get_index_info(index_code)
         if not index_info:
             raise HTTPException(status_code=404, detail="指数不存在")
-        return index_info
+        return {
+            "success": True,
+            "data": index_info,
+            "message": "获取指数信息成功"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取指数信息失败: {str(e)}")
 
-@router.get("/{index_code}/history", response_model=IndexHistoryData)
+@router.get("/{index_code}/history", response_model=dict)
 async def get_index_history(
     index_code: str,
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
@@ -106,11 +114,15 @@ async def get_index_history(
             start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         
         history_data = await service.get_index_history(index_code, start_date, end_date)
-        return history_data
+        return {
+            "success": True,
+            "data": history_data,
+            "message": "获取历史数据成功"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取历史数据失败: {str(e)}")
 
-@router.post("/compare", response_model=IndexComparisonResponse)
+@router.post("/compare", response_model=dict)
 async def compare_indices(
     index_codes: List[str],
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
@@ -137,7 +149,11 @@ async def compare_indices(
             start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         
         comparison_data = await service.compare_indices(index_codes, start_date, end_date)
-        return comparison_data
+        return {
+            "success": True,
+            "data": comparison_data,
+            "message": "指数对比成功"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"指数对比失败: {str(e)}")
 

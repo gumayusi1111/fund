@@ -184,10 +184,10 @@ class IndexService:
                 base_date="2004-12-31",
                 base_value=1000.0,
                 current_value=3000.0,
-                change=10.5,
-                pct_change=0.35,
+                change_value=10.5,
+                change_percent=0.35,
                 volume=125000000,
-                last_update=datetime.now().isoformat()
+                last_update=datetime.now()
             )
         except Exception as e:
             print(f"获取指数信息时出错: {e}")
@@ -224,8 +224,8 @@ class IndexService:
                     high_value=float(row["high"]),
                     low_value=float(row["low"]),
                     volume=int(row.get("volume", 0)),
-                    change=0.0,  # 计算后填入
-                    pct_change=0.0  # 计算后填入
+                    change_value=0.0,  # 计算后填入
+                    change_percent=0.0  # 计算后填入
                 ))
             
             # 计算涨跌和涨跌幅
@@ -235,8 +235,8 @@ class IndexService:
                 change = curr_close - prev_close
                 pct_change = (change / prev_close * 100) if prev_close > 0 else 0
                 
-                data_points[i].change = round(change, 2)
-                data_points[i].pct_change = round(pct_change, 2)
+                data_points[i].change_value = round(change, 2)
+                data_points[i].change_percent = round(pct_change, 2)
             
             # 计算统计数据
             if data_points:
@@ -245,7 +245,7 @@ class IndexService:
                 total_return = ((end_value - start_value) / start_value * 100) if start_value > 0 else 0
                 
                 # 计算波动率
-                returns = [dp.pct_change for dp in data_points[1:]]
+                returns = [dp.change_percent for dp in data_points[1:]]
                 if returns:
                     import statistics
                     volatility = statistics.stdev(returns) if len(returns) > 1 else 0

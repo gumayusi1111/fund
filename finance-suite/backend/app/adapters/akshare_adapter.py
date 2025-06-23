@@ -21,14 +21,16 @@ class AKShareAdapter:
             # 运行在线程池中以避免阻塞
             loop = asyncio.get_event_loop()
             
-            if index_code.startswith("000"):
-                # 上证指数
-                df = await loop.run_in_executor(None, ak.index_zh_a_hist, index_code, "daily", "19901219", "20231231", "")
-            elif index_code.startswith("399"):
-                # 深证指数
-                df = await loop.run_in_executor(None, ak.index_zh_a_hist, index_code, "daily", "19901219", "20231231", "")
-            else:
-                return None
+            # 使用关键字参数调用
+            df = await loop.run_in_executor(
+                None, 
+                lambda: ak.index_zh_a_hist(
+                    symbol=index_code,
+                    period="daily",
+                    start_date="19901219",
+                    end_date="20231231"
+                )
+            )
             
             if df is None or df.empty:
                 return None
@@ -51,8 +53,14 @@ class AKShareAdapter:
         try:
             loop = asyncio.get_event_loop()
             
-            # 获取实时行情数据
-            df = await loop.run_in_executor(None, ak.index_zh_a_hist, index_code, "daily", "", "", "")
+            # 获取实时行情数据 - 使用默认参数获取最新数据
+            df = await loop.run_in_executor(
+                None, 
+                lambda: ak.index_zh_a_hist(
+                    symbol=index_code,
+                    period="daily"
+                )
+            )
             
             if df is None or df.empty:
                 return None
@@ -90,7 +98,13 @@ class AKShareAdapter:
             end_formatted = end_date.replace("-", "")
             
             df = await loop.run_in_executor(
-                None, ak.index_zh_a_hist, index_code, "daily", start_formatted, end_formatted, ""
+                None,
+                lambda: ak.index_zh_a_hist(
+                    symbol=index_code,
+                    period="daily",
+                    start_date=start_formatted,
+                    end_date=end_formatted
+                )
             )
             
             if df is None or df.empty:

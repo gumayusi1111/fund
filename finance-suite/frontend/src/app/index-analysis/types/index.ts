@@ -41,6 +41,7 @@ export interface IndexHistoryData {
     volatility?: number;
     max_value?: number;
     min_value?: number;
+    avg_volume?: number;
   };
 }
 
