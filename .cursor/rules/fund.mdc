@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+只允许 在 /Users/wenbai/Desktop/fund/finance-suite操作 不要乱生成在根目录文件 
