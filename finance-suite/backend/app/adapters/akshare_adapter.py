@@ -15,6 +15,66 @@ class AKShareAdapter:
         self.timeout = 30
         self.max_retries = 3
     
+    async def get_index_info(self, index_code: str) -> Optional[Dict[str, Any]]:
+        """获取指数信息"""
+        try:
+            # 获取实时行情
+            realtime_data = await self.get_index_realtime(index_code)
+            if not realtime_data:
+                return None
+            
+            # 获取基本信息
+            basic_info = await self.get_index_basic_info(index_code)
+            
+            # 合并数据
+            result = {
+                "code": index_code,
+                "name": self._get_index_name(index_code),
+                "current_value": realtime_data.get("current"),
+                "change_value": realtime_data.get("change"),
+                "change_percent": realtime_data.get("pct_chg"),
+                "volume": realtime_data.get("volume"),
+                "turnover": realtime_data.get("amount"),
+                "amplitude": self._calculate_amplitude(realtime_data),
+                "pe_ratio": None,  # akshare不直接提供估值数据
+                "pb_ratio": None,
+                "dividend_yield": None,
+                "valuation_percentile": None,
+            }
+            
+            logger.info(f"获取指数信息成功: {index_code} - 当前值: {result['current_value']}, 涨跌: {result['change_value']}")
+            
+            return result
+        except Exception as e:
+            logger.error(f"获取指数信息失败 {index_code}: {str(e)}")
+            return None
+    
+    def _get_index_name(self, index_code: str) -> str:
+        """根据指数代码获取名称"""
+        name_map = {
+            "000001": "上证指数",
+            "000300": "沪深300",
+            "000905": "中证500",
+            "399001": "深证成指",
+            "399006": "创业板指",
+            "000016": "上证50",
+            "000852": "中证1000",
+            "399005": "中小板指",
+            "000906": "中证800",
+        }
+        return name_map.get(index_code, f"指数 {index_code}")
+    
+    def _calculate_amplitude(self, realtime_data: Dict[str, Any]) -> Optional[float]:
+        """计算振幅"""
+        try:
+            high = realtime_data.get("high")
+            low = realtime_data.get("low")
+            if high and low and low > 0:
+                return ((high - low) / low) * 100
+            return None
+        except Exception:
+            return None
+
     async def get_index_basic_info(self, index_code: str) -> Optional[Dict[str, Any]]:
         """获取指数基本信息"""
         try:

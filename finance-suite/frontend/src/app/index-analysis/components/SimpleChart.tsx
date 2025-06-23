@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useRef } from 'react';
 import { IndexHistoryData } from '../types';
 
 export interface SimpleChartProps {
@@ -9,7 +10,19 @@ export interface SimpleChartProps {
   showTooltip?: boolean;
 }
 
+interface HorizontalLine {
+  id: string;
+  y: number;
+  value: number;
+  color: string;
+  label: string;
+}
+
 export default function SimpleChart({ data, loading, height = 400, showTooltip = true }: SimpleChartProps) {
+  const [horizontalLines, setHorizontalLines] = useState<HorizontalLine[]>([]);
+  const [isDragging, setIsDragging] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
@@ -96,20 +109,114 @@ export default function SimpleChart({ data, loading, height = 400, showTooltip =
   const currentPoint = points[points.length - 1];
   const currentValue = data.data[data.data.length - 1];
 
+  // 将Y坐标转换为价格值
+  const yToValue = (y: number): number => {
+    const relativeY = (y - marginTop) / chartHeight;
+    return adjustedMax - (relativeY * adjustedRange);
+  };
+
+
+
+  // 添加水平线
+  const addHorizontalLine = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.ctrlKey || e.metaKey) { // Ctrl+Click 或 Cmd+Click 添加线
+      const svg = e.currentTarget;
+      const rect = svg.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      
+      if (y >= marginTop && y <= marginTop + chartHeight) {
+        const value = yToValue(y);
+        const newLine: HorizontalLine = {
+          id: Date.now().toString(),
+          y: y,
+          value: value,
+          color: '#ef4444',
+          label: `参考线 ${value.toFixed(2)}`
+        };
+        setHorizontalLines(prev => [...prev, newLine]);
+      }
+    }
+  };
+
+  // 开始拖拽
+  const startDrag = (lineId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDragging(lineId);
+  };
+
+  // 拖拽过程中
+  const handleDrag = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (isDragging) {
+      const svg = e.currentTarget;
+      const rect = svg.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      
+      if (y >= marginTop && y <= marginTop + chartHeight) {
+        const value = yToValue(y);
+        setHorizontalLines(prev => 
+          prev.map(line => 
+            line.id === isDragging 
+              ? { ...line, y: y, value: value, label: `参考线 ${value.toFixed(2)}` }
+              : line
+          )
+        );
+      }
+    }
+  };
+
+  // 结束拖拽
+  const endDrag = () => {
+    setIsDragging(null);
+  };
+
+  // 删除水平线
+  const removeHorizontalLine = (lineId: string) => {
+    setHorizontalLines(prev => prev.filter(line => line.id !== lineId));
+  };
+
   // 处理鼠标事件
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (isDragging) {
+      handleDrag(e);
+      return;
+    }
+
     if (!showTooltip) return;
     
     const svg = e.currentTarget;
     const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
     
-    // 找到最近的数据点
+    // 计算鼠标在SVG坐标系中的位置
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // 考虑SVG的viewBox缩放比例
+    const scaleX = svgWidth / rect.width;
+    const scaleY = svgHeight / rect.height;
+    
+    const svgX = mouseX * scaleX;
+    const svgY = mouseY * scaleY;
+    
+    // 只在图表区域内显示tooltip
+    if (svgX < marginLeft || svgX > marginLeft + chartWidth || 
+        svgY < marginTop || svgY > marginTop + chartHeight) {
+      // 隐藏tooltip
+      const tooltip = svg.querySelector('.chart-tooltip') as SVGGElement;
+      const hoverCircle = svg.querySelector('.hover-circle') as SVGCircleElement;
+      const hoverLine = svg.querySelector('.hover-line') as SVGLineElement;
+      
+      if (tooltip) tooltip.style.display = 'none';
+      if (hoverCircle) hoverCircle.style.display = 'none';
+      if (hoverLine) hoverLine.style.display = 'none';
+      return;
+    }
+    
+    // 找到最近的数据点 - 只考虑X轴距离
     let closestPoint = points[0];
-    let closestDistance = Math.abs(points[0].x - x);
+    let closestDistance = Math.abs(points[0].x - svgX);
     
     for (const point of points) {
-      const distance = Math.abs(point.x - x);
+      const distance = Math.abs(point.x - svgX);
       if (distance < closestDistance) {
         closestDistance = distance;
         closestPoint = point;
@@ -123,7 +230,7 @@ export default function SimpleChart({ data, loading, height = 400, showTooltip =
     const hoverCircle = svg.querySelector('.hover-circle') as SVGCircleElement;
     const hoverLine = svg.querySelector('.hover-line') as SVGLineElement;
     
-    if (tooltip && tooltipBg && tooltipText && hoverCircle && hoverLine && closestDistance < 50) {
+    if (tooltip && tooltipBg && tooltipText && hoverCircle && hoverLine && closestDistance < 20) {
       // 显示悬停元素
       hoverCircle.style.display = 'block';
       hoverLine.style.display = 'block';
@@ -189,6 +296,8 @@ export default function SimpleChart({ data, loading, height = 400, showTooltip =
   };
   
   const handleMouseLeave = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (isDragging) return;
+    
     if (!showTooltip) return;
     
     const svg = e.currentTarget;
@@ -203,11 +312,21 @@ export default function SimpleChart({ data, loading, height = 400, showTooltip =
 
   return (
     <div className="w-full" style={{ height }}>
+      {/* 操作提示 */}
+      <div className="mb-2 text-xs text-gray-500 flex items-center gap-4">
+        <span>💡 按住 Ctrl/Cmd + 点击图表添加参考线</span>
+        <span>拖拽参考线可移动位置</span>
+        <span>双击参考线删除</span>
+      </div>
+      
       <svg 
+        ref={svgRef}
         viewBox={`0 0 ${svgWidth} ${svgHeight}`} 
-        className="w-full h-full"
+        className="w-full h-full cursor-crosshair"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onMouseUp={endDrag}
+        onClick={addHorizontalLine}
       >
         {/* 定义渐变 */}
         <defs>
@@ -294,6 +413,57 @@ export default function SimpleChart({ data, loading, height = 400, showTooltip =
           strokeLinejoin="round"
           filter="url(#shadow)"
         />
+
+        {/* 水平参考线 */}
+        {horizontalLines.map((line) => (
+          <g key={line.id}>
+            {/* 参考线 */}
+            <line
+              x1={marginLeft}
+              y1={line.y}
+              x2={marginLeft + chartWidth}
+              y2={line.y}
+              stroke={line.color}
+              strokeWidth="2"
+              strokeDasharray="5 5"
+              className="cursor-move"
+              onMouseDown={(e) => startDrag(line.id, e)}
+              onDoubleClick={() => removeHorizontalLine(line.id)}
+            />
+            
+            {/* 拖拽手柄 */}
+            <circle
+              cx={marginLeft + chartWidth - 20}
+              cy={line.y}
+              r="6"
+              fill={line.color}
+              stroke="white"
+              strokeWidth="2"
+              className="cursor-move"
+              onMouseDown={(e) => startDrag(line.id, e)}
+              onDoubleClick={() => removeHorizontalLine(line.id)}
+            />
+            
+            {/* 价格标签 */}
+            <rect
+              x={marginLeft + chartWidth + 5}
+              y={line.y - 10}
+              width="80"
+              height="20"
+              rx="3"
+              fill={line.color}
+              opacity="0.9"
+            />
+            <text
+              x={marginLeft + chartWidth + 45}
+              y={line.y + 4}
+              textAnchor="middle"
+              className="text-xs font-bold fill-white"
+            >
+              {line.value.toFixed(2)}
+            </text>
+          </g>
+        ))}
 
         {/* 数据点 */}
         {points.map((point, i) => (

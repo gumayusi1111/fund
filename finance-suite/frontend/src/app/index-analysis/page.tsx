@@ -320,7 +320,7 @@ export default function IndexAnalysisPage() {
                   <span className="text-xs text-yellow-600">⭐⭐⭐⭐</span>
                 </div>
                 <p className="text-xl font-bold text-gray-900">
-                  {indexInfo.pe_ratio?.toFixed(2) || '--'}
+                  {indexInfo.pe_ratio?.toFixed(2) || '获取失败'}
                 </p>
                 <p className="text-xs text-gray-400">估值贵不贵</p>
               </div>
@@ -332,7 +332,7 @@ export default function IndexAnalysisPage() {
                   <span className="text-xs text-yellow-600">⭐⭐⭐</span>
                 </div>
                 <p className="text-xl font-bold text-gray-900">
-                  {indexInfo.pb_ratio?.toFixed(2) || '--'}
+                  {indexInfo.pb_ratio?.toFixed(2) || '获取失败'}
                 </p>
                 <p className="text-xs text-gray-400">资产估值参考</p>
               </div>
@@ -344,7 +344,7 @@ export default function IndexAnalysisPage() {
                   <span className="text-xs text-yellow-600">⭐⭐⭐</span>
                 </div>
                 <p className="text-xl font-bold text-gray-900">
-                  {indexInfo.dividend_yield ? indexInfo.dividend_yield.toFixed(2) + '%' : '--'}
+                  {indexInfo.dividend_yield ? indexInfo.dividend_yield.toFixed(2) + '%' : '获取失败'}
                 </p>
                 <p className="text-xs text-gray-400">能不能吃利息</p>
               </div>
@@ -355,7 +355,9 @@ export default function IndexAnalysisPage() {
                   <p className="text-sm text-gray-500">估值分位数</p>
                   <span className="text-xs text-yellow-600">⭐⭐⭐⭐</span>
                 </div>
-                <p className="text-xl font-bold text-gray-900">--</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {indexInfo.valuation_percentile ? indexInfo.valuation_percentile.toFixed(1) + '%' : '获取失败'}
+                </p>
                 <p className="text-xs text-gray-400">历史估值位置</p>
               </div>
             </div>

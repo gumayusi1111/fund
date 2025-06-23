@@ -1,243 +1,156 @@
+"""
+指数数据服务
+"""
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
-import pandas as pd
 import random
-import asyncio
-import akshare as ak
 
 from app.adapters.akshare_adapter import AKShareAdapter
 from app.schemas.index_schemas import (
-    IndexBaseInfo, IndexInfo, IndexDataPoint, IndexHistoryData,
-    IndexComparisonItem, IndexComparisonResponse, IndexListResponse,
-    IndexType
+    IndexInfo, IndexListResponse, IndexBaseInfo, IndexType,
+    IndexHistoryData, IndexComparisonResponse, IndexComparisonItem
 )
 
 logger = logging.getLogger(__name__)
 
 
 class IndexService:
-    """指数服务类"""
+    """指数数据服务类"""
     
     def __init__(self):
         self.adapter = AKShareAdapter()
-    
+
     async def get_index_list(self, index_type: Optional[str] = None,
                            page: int = 1, size: int = 20) -> IndexListResponse:
         """获取指数列表"""
         try:
-            # 返回预定义的主要指数列表
-            all_indices = [
+            # 定义一些常用指数
+            indices = [
+                IndexBaseInfo(
+                    code="000001",
+                    name="上证指数",
+                    market="SH",
+                    category="综合指数",
+                    index_type=IndexType.EQUITY
+                ),
                 IndexBaseInfo(
                     code="000300",
                     name="沪深300",
-                    index_type=IndexType.EQUITY,
-                    market="A股"
+                    market="SH",
+                    category="规模指数",
+                    index_type=IndexType.EQUITY
                 ),
                 IndexBaseInfo(
                     code="000905",
                     name="中证500",
-                    index_type=IndexType.EQUITY,
-                    market="A股"
-                ),
-                IndexBaseInfo(
-                    code="000001",
-                    name="上证指数",
-                    index_type=IndexType.EQUITY,
-                    market="上海"
+                    market="SH",
+                    category="规模指数",
+                    index_type=IndexType.EQUITY
                 ),
                 IndexBaseInfo(
                     code="399001",
                     name="深证成指",
-                    index_type=IndexType.EQUITY,
-                    market="深圳"
+                    market="SZ",
+                    category="综合指数",
+                    index_type=IndexType.EQUITY
                 ),
                 IndexBaseInfo(
                     code="399006",
                     name="创业板指",
-                    index_type=IndexType.GROWTH,
-                    market="深圳"
+                    market="SZ",
+                    category="规模指数",
+                    index_type=IndexType.EQUITY
                 ),
             ]
             
-            # 简单分页
-            total = len(all_indices)
+            # 分页处理
             start_idx = (page - 1) * size
-            end_idx = min(start_idx + size, total)
-            paged_indices = all_indices[start_idx:end_idx]
+            end_idx = start_idx + size
+            page_indices = indices[start_idx:end_idx]
             
             return IndexListResponse(
                 success=True,
-                data=paged_indices,
-                total=total,
+                data=page_indices,
+                total=len(indices),
                 page=page,
                 size=size,
-                message="获取指数列表成功"
+                pages=(len(indices) + size - 1) // size
             )
         except Exception as e:
             logger.error(f"获取指数列表失败: {str(e)}")
-            raise
-    
+            return IndexListResponse(
+                success=False,
+                data=[],
+                total=0,
+                page=page,
+                size=size,
+                pages=0,
+                message=f"获取指数列表失败: {str(e)}"
+            )
+
     async def get_available_indices(self) -> List[IndexBaseInfo]:
-        """获取可用指数列表 - 使用真实数据源"""
+        """获取所有可用指数"""
         try:
-            # 使用akshare获取主要指数信息
-            # 这里获取一些主要的指数代码和基础信息
-            indices_data = []
-            
-            # 主要指数列表 - 从真实数据源动态获取
-            main_indices = [
-                {"code": "000300", "name": "沪深300", "market": "A股"},
-                {"code": "000905", "name": "中证500", "market": "A股"},
-                {"code": "000001", "name": "上证指数", "market": "上海"},
-                {"code": "399001", "name": "深证成指", "market": "深圳"},
-                {"code": "399006", "name": "创业板指", "market": "深圳"},
-                {"code": "000016", "name": "上证50", "market": "上海"},
-                {"code": "000852", "name": "中证1000", "market": "A股"},
-                {"code": "399005", "name": "中小板指", "market": "深圳"},
-                {"code": "000906", "name": "中证800", "market": "A股"},
-                {"code": "000002", "name": "A股指数", "market": "上海"},
-                {"code": "399107", "name": "深证综指", "market": "深圳"},
-                {"code": "399102", "name": "创业板综", "market": "深圳"},
-                {"code": "000015", "name": "红利指数", "market": "上海"},
-                {"code": "000010", "name": "上证180", "market": "上海"},
-                {"code": "000903", "name": "中证100", "market": "A股"},
-                {"code": "000985", "name": "中证全指", "market": "A股"},
-                {"code": "399324", "name": "深证红利", "market": "深圳"},
-                {"code": "399550", "name": "央视50", "market": "深圳"},
-                {"code": "000932", "name": "中证消费", "market": "A股"},
-                {"code": "000964", "name": "中证医药", "market": "A股"},
-            ]
-            
-            # 为每个指数创建IndexBaseInfo对象
-            for index_info in main_indices:
-                try:
-                    # 根据市场分类决定类型
-                    if "创业" in index_info["name"]:
-                        index_type = IndexType.GROWTH
-                    elif "消费" in index_info["name"] or "医药" in index_info["name"]:
-                        index_type = IndexType.SECTOR
-                    else:
-                        index_type = IndexType.EQUITY
-                    
-                    indices_data.append(IndexBaseInfo(
-                        code=index_info["code"],
-                        name=index_info["name"],
-                        market=index_info["market"],
-                        category="综合指数",
-                        index_type=index_type
-                    ))
-                except Exception as e:
-                    print(f"处理指数 {index_info['code']} 时出错: {e}")
-                    continue
-            
-            return indices_data
+            response = await self.get_index_list(size=100)
+            return response.data
         except Exception as e:
-            print(f"获取指数列表时出错: {e}")
+            logger.error(f"获取可用指数失败: {str(e)}")
             return []
 
     def _determine_index_type(self, code: str, name: str) -> IndexType:
         """根据指数代码和名称确定指数类型"""
-        if "创业" in name or "科创" in name:
-            return IndexType.GROWTH
-        elif any(word in name for word in ["50", "180", "380"]):
-            return IndexType.LARGE_CAP
-        elif any(word in name for word in ["1000", "500", "中小"]):
-            return IndexType.SMALL_CAP
+        if any(keyword in name for keyword in ["债券", "债"]):
+            return IndexType.BOND
+        elif any(keyword in name for keyword in ["商品", "黄金", "原油"]):
+            return IndexType.COMMODITY
         else:
             return IndexType.EQUITY
 
     def _determine_category(self, name: str) -> str:
         """根据指数名称确定分类"""
-        if "创业" in name:
-            return "成长指数"
-        elif "科创" in name:
-            return "科技指数" 
-        elif any(word in name for word in ["50", "180", "380"]):
-            return "大盘指数"
-        elif any(word in name for word in ["1000", "500", "中小"]):
-            return "中小盘指数"
+        if any(keyword in name for keyword in ["300", "500", "50", "1000"]):
+            return "规模指数"
+        elif any(keyword in name for keyword in ["行业", "医药", "科技", "消费"]):
+            return "行业指数"
+        elif any(keyword in name for keyword in ["价值", "成长", "红利"]):
+            return "策略指数"
         else:
             return "综合指数"
 
     async def get_index_info(self, index_code: str) -> Optional[IndexInfo]:
-        """获取指数详细信息"""
+        """获取指数基本信息"""
         try:
-            # 模拟指数信息 - 从可用指数列表中获取基础信息
-            available_indices = await self.get_available_indices()
-            base_info = None
+            # 使用AKShare适配器获取真实数据
+            info = await self.adapter.get_index_info(index_code)
             
-            for index in available_indices:
-                if index.code == index_code:
-                    base_info = index
-                    break
-            
-            if not base_info:
+            if info is None:
+                logger.error(f"获取指数信息失败: {index_code} - 适配器返回None")
                 return None
             
-            # 尝试获取实时数据
-            try:
-                # 获取指数实时行情数据
-                df = ak.index_zh_a_hist(symbol=index_code, period="daily", start_date="", end_date="")
-                if not df.empty:
-                    latest_data = df.iloc[-1]
-                    
-                    # 获取前一天的收盘价来计算涨跌
-                    prev_close = df.iloc[-2]['收盘'] if len(df) > 1 else latest_data['收盘']
-                    current_value = float(latest_data['收盘'])
-                    change_value = current_value - prev_close
-                    change_percent = (change_value / prev_close * 100) if prev_close > 0 else 0
-                    
-                    # 计算振幅
-                    high_value = float(latest_data['最高'])
-                    low_value = float(latest_data['最低'])
-                    amplitude = ((high_value - low_value) / low_value * 100) if low_value > 0 else 0
-                    
-                    return IndexInfo(
-                        code=index_code,
-                        name=base_info.name,
-                        market=base_info.market,
-                        category=base_info.category,
-                        index_type=base_info.index_type,
-                        base_date="2004-12-31",
-                        base_value=1000.0,
-                        current_value=current_value,
-                        change_value=change_value,
-                        change_percent=change_percent,
-                        volume=int(latest_data.get('成交量', 0)),
-                        turnover=float(latest_data.get('成交额', 0)),
-                        amplitude=amplitude,
-                        # 估值数据暂时使用模拟值，后续可以接入真实数据源
-                        pe_ratio=15.5,
-                        pb_ratio=1.8,
-                        dividend_yield=2.3,
-                        last_update=datetime.now()
-                    )
-            except Exception as e:
-                logger.warning(f"获取实时数据失败，使用模拟数据: {e}")
+            logger.info(f"获取指数信息成功: {index_code} - {info}")
             
-            # 如果获取失败，返回模拟数据
+            # 将适配器返回的数据转换为IndexInfo对象
             return IndexInfo(
-                code=index_code,
-                name=base_info.name,
-                market=base_info.market,
-                category=base_info.category,
-                index_type=base_info.index_type,
-                base_date="2004-12-31",
-                base_value=1000.0,
-                current_value=3000.0,
-                change_value=10.5,
-                change_percent=0.35,
-                volume=125000000,
-                turnover=8500000000,
-                amplitude=1.2,
-                pe_ratio=15.5,
-                pb_ratio=1.8,
-                dividend_yield=2.3,
+                code=info.get("code", index_code),
+                name=info.get("name", f"指数 {index_code}"),
+                market=info.get("market", "SH" if index_code.startswith("000") else "SZ"),
+                category=self._determine_category(info.get("name", "")),
+                index_type=self._determine_index_type(index_code, info.get("name", "")),
+                current_value=info.get("current_value"),
+                change_value=info.get("change_value"),
+                change_percent=info.get("change_percent"),
+                volume=info.get("volume"),
+                turnover=info.get("turnover"),
+                amplitude=info.get("amplitude"),
+                pe_ratio=info.get("pe_ratio"),
+                pb_ratio=info.get("pb_ratio"),
+                dividend_yield=info.get("dividend_yield"),
+                valuation_percentile=info.get("valuation_percentile"),
                 last_update=datetime.now()
             )
         except Exception as e:
-            print(f"获取指数信息时出错: {e}")
+            logger.error(f"获取指数信息时出错: {e}")
             return None
 
     async def get_index_history(self, index_code: str, start_date: str,
@@ -319,7 +232,7 @@ class IndexService:
                 statistics=statistics_data
             )
         except Exception as e:
-            print(f"获取历史数据时出错: {e}")
+            logger.error(f"获取历史数据时出错: {e}")
             # 返回空的历史数据结构
             return IndexHistoryData(
                 code=index_code,
@@ -394,25 +307,15 @@ class IndexService:
     async def search_indices(self, keyword: str, size: int = 10) -> List[IndexBaseInfo]:
         """搜索指数"""
         try:
-            # 获取所有可用指数
             all_indices = await self.get_available_indices()
             
-            # 根据关键词过滤
-            keyword = keyword.lower().strip()
-            if not keyword:
-                return all_indices[:size]
+            # 简单的关键词匹配
+            matched_indices = [
+                index for index in all_indices
+                if keyword.lower() in index.name.lower() or keyword in index.code
+            ]
             
-            filtered_indices = []
-            for index in all_indices:
-                if (keyword in index.code.lower() or 
-                    keyword in index.name.lower()):
-                    filtered_indices.append(index)
-                    
-                    # 限制返回数量
-                    if len(filtered_indices) >= size:
-                        break
-            
-            return filtered_indices
+            return matched_indices[:size]
         except Exception as e:
-            print(f"搜索指数时出错: {e}")
+            logger.error(f"搜索指数失败: {str(e)}")
             return [] 
