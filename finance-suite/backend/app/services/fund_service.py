@@ -1,6 +1,7 @@
 import logging
+import asyncio
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 
@@ -53,65 +54,18 @@ class FundService:
             )
         except Exception as e:
             logger.error(f"获取基金列表失败: {str(e)}")
-            # 返回模拟数据
             return FundListResponse(
-                success=True,
-                data=[
-                    FundBaseInfo(code="110020", name="易方达沪深300ETF联接A", fund_type=FundType.INDEX, company="易方达基金"),
-                    FundBaseInfo(code="000051", name="华夏沪深300ETF联接A", fund_type=FundType.INDEX, company="华夏基金"),
-                ],
-                total=2, page=page, size=size, message="使用模拟数据"
+                success=False,
+                data=[],
+                total=0, page=page, size=size, message=f"获取基金列表失败: {str(e)}"
             )
-    
-    async def get_fund_info(self, fund_code: str) -> Optional[FundInfo]:
-        """获取基金详细信息"""
-        try:
-            # 返回模拟数据
-            return FundInfo(
-                code=fund_code,
-                name=f"基金{fund_code}",
-                fund_type=FundType.INDEX,
-                company="模拟基金公司",
-                manager="模拟基金经理",
-                establish_date="2020-01-01",
-                unit_net_value=1.5,
-                accumulated_net_value=1.8,
-                net_value_date=datetime.now().strftime("%Y-%m-%d"),
-                day_growth_rate=0.5,
-                recent_1month=2.1,
-                recent_3month=5.5,
-                recent_1year=12.8
-            )
-        except Exception as e:
-            logger.error(f"获取基金信息失败: {str(e)}")
-            return None
-    
-    async def get_fund_history(self, fund_code: str, start_date: str, 
-                             end_date: str) -> FundHistoryData:
-        """获取基金历史净值数据"""
-        try:
-            # 生成模拟历史数据
-            import random
-            from datetime import datetime, timedelta
-            
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-            
-            funds = []
-            for result in results:
-                if isinstance(result, FundInfo):
-                    funds.append(result)
-            
-            return funds
-        except Exception as e:
-            logger.error(f"获取指数基金失败: {str(e)}")
-            raise
     
     async def get_fund_info(self, fund_code: str) -> Optional[FundInfo]:
         """获取基金详细信息"""
         try:
             basic_info = await self.adapter.get_fund_basic_info(fund_code)
             if not basic_info:
+                logger.error(f"获取基金基本信息失败: {fund_code}")
                 return None
             
             nav_info = await self.adapter.get_fund_nav(fund_code)
@@ -133,7 +87,7 @@ class FundService:
             )
         except Exception as e:
             logger.error(f"获取基金信息失败: {str(e)}")
-            raise
+            return None
     
     async def get_fund_history(self, fund_code: str, start_date: str, 
                              end_date: str) -> FundHistoryData:

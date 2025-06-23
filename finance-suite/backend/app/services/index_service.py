@@ -4,7 +4,7 @@
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
-import random
+
 
 from app.adapters.akshare_adapter import AKShareAdapter
 from app.schemas.index_schemas import (
@@ -262,7 +262,7 @@ class IndexService:
                     performance={
                         "total_return": history_data.statistics.get("total_return", 0),
                         "volatility": history_data.statistics.get("volatility", 0),
-                        "max_drawdown": round(random.uniform(5, 15), 2)
+                        "max_drawdown": 0.0  # 需要基于真实数据计算
                     }
                 ))
             
