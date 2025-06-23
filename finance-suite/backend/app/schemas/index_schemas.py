@@ -40,9 +40,11 @@ class IndexInfo(BaseModel):
     change_value: Optional[float] = Field(None, description="涨跌点数")
     volume: Optional[float] = Field(None, description="成交量")
     turnover: Optional[float] = Field(None, description="成交额")
+    amplitude: Optional[float] = Field(None, description="振幅")
     pe_ratio: Optional[float] = Field(None, description="市盈率")
     pb_ratio: Optional[float] = Field(None, description="市净率")
     dividend_yield: Optional[float] = Field(None, description="股息率")
+    valuation_percentile: Optional[float] = Field(None, description="估值分位数")
     constituent_count: Optional[int] = Field(None, description="成分股数量")
     last_update: Optional[datetime] = Field(None, description="最后更新时间")
 

@@ -52,8 +52,53 @@ export default function IndexAnalysisPage() {
     }
   };
 
+  // 计算年初至今涨跌幅
+  const getYearToDateReturn = () => {
+    if (!historyData?.data || historyData.data.length === 0) return null;
+    
+    // 找到年初的数据
+    const currentYear = new Date().getFullYear();
+    const yearStartData = historyData.data.find(d => {
+      const date = new Date(d.date);
+      return date.getFullYear() === currentYear && date.getMonth() === 0;
+    });
+    
+    if (yearStartData) {
+      const lastData = historyData.data[historyData.data.length - 1];
+      const ytdReturn = ((lastData.close_value - yearStartData.close_value) / yearStartData.close_value) * 100;
+      return ytdReturn || null;
+    }
+    
+    return null;
+  };
+
+  // 计算52周高低
+  const get52WeekHighLow = () => {
+    if (!historyData?.data || historyData.data.length === 0) return { high: null, low: null };
+    
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    
+    const yearData = historyData.data.filter(d => new Date(d.date) >= oneYearAgo);
+    
+    if (yearData.length > 0) {
+      const high = Math.max(...yearData.map(d => d.high_value));
+      const low = Math.min(...yearData.map(d => d.low_value));
+      return { high, low };
+    }
+    
+    return { high: null, low: null };
+  };
+
+  // 计算振幅
+  const getAmplitude = () => {
+    if (!historyData?.data || historyData.data.length === 0) return null;
+    const lastData = historyData.data[historyData.data.length - 1];
+    return ((lastData.high_value - lastData.low_value) / lastData.low_value) * 100;
+  };
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 max-w-full mx-auto">
       {/* 页面标题 */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">指数分析</h1>
@@ -91,48 +136,6 @@ export default function IndexAnalysisPage() {
         </div>
       </div>
 
-      {/* 指数信息卡片 */}
-      {indexInfo && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div>
-              <p className="text-sm text-gray-500">指数代码</p>
-              <p className="font-semibold">{indexInfo.code}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">指数名称</p>
-              <p className="font-semibold">{indexInfo.name}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">所属市场</p>
-              <p>{indexInfo.market}</p>
-            </div>
-            {indexInfo.current_value !== null && indexInfo.current_value !== undefined && (
-              <div>
-                <p className="text-sm text-gray-500">当前点位</p>
-                <p className="font-semibold">{indexInfo.current_value.toFixed(2)}</p>
-              </div>
-            )}
-            {indexInfo.change_value !== null && indexInfo.change_value !== undefined && (
-              <div>
-                <p className="text-sm text-gray-500">涨跌点数</p>
-                <p className={`font-semibold ${indexInfo.change_value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {indexInfo.change_value >= 0 ? '+' : ''}{indexInfo.change_value.toFixed(2)}
-                </p>
-              </div>
-            )}
-            {indexInfo.change_percent !== null && indexInfo.change_percent !== undefined && (
-              <div>
-                <p className="text-sm text-gray-500">涨跌幅</p>
-                <p className={`font-semibold ${indexInfo.change_percent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {indexInfo.change_percent >= 0 ? '+' : ''}{indexInfo.change_percent.toFixed(2)}%
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* 错误提示 */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
@@ -151,94 +154,242 @@ export default function IndexAnalysisPage() {
         </div>
       )}
 
-      {/* 主内容区域 - 使用网格布局 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 左侧 - 图表区域 (占2/3) */}
-        <div className="lg:col-span-2">
-          <div className="bg-white border border-gray-200 rounded-lg">
-            {historyData && historyData.data && historyData.data.length > 0 ? (
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold">价格走势</h2>
-                  <div className="text-sm text-gray-500">
-                    {historyData.data[0].date} - {historyData.data[historyData.data.length - 1].date}
-                  </div>
-                </div>
-                <SimpleChart
-                  data={historyData}
-                  loading={loading}
-                  height={500}
-                />
+      {/* 图表区域 - 全宽 */}
+      <div className="bg-white border border-gray-200 rounded-lg mb-6 overflow-hidden">
+        {historyData && historyData.data && historyData.data.length > 0 ? (
+          <div className="p-6 overflow-x-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">
+                {historyData.name} ({historyData.code}) 价格走势
+              </h2>
+              <div className="text-sm text-gray-500">
+                {historyData.data[0].date} - {historyData.data[historyData.data.length - 1].date}
+              </div>
+            </div>
+            <SimpleChart
+              data={historyData}
+              loading={loading}
+              height={450}
+            />
+          </div>
+        ) : (
+          <div className="p-12 text-center">
+            {loading ? (
+              <div>
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-600">正在加载数据...</p>
               </div>
             ) : (
-              <div className="p-12 text-center">
-                {loading ? (
-                  <div>
-                    <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-600">正在加载数据...</p>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-2xl">📊</span>
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">暂无数据</h3>
-                    <p className="text-gray-500 mb-4">请输入指数代码并点击查询按钮</p>
-                    <button
-                      onClick={handleSearch}
-                      disabled={!isValidCode || loading}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      开始查询
-                    </button>
-                  </div>
-                )}
+              <div>
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">📊</span>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">暂无数据</h3>
+                <p className="text-gray-500 mb-4">请输入指数代码并点击查询按钮</p>
+                <button
+                  onClick={handleSearch}
+                  disabled={!isValidCode || loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                >
+                  开始查询
+                </button>
               </div>
             )}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* 右侧 - 统计信息和详细数据 (占1/3) */}
-        <div className="space-y-6">
-          {/* 统计信息卡片 */}
-          {historyData && historyData.statistics && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+      {/* 数据展示区域 */}
+      {indexInfo && historyData && historyData.data && historyData.data.length > 0 && (
+        <>
+          {/* 基础行情数据 */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">基础行情数据</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {/* 最新点位 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">最新点位</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐⭐</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-900">
+                  {indexInfo.current_value?.toFixed(2) || '--'}
+                </p>
+                <p className="text-xs text-gray-400">当前指数价格</p>
+              </div>
+
+              {/* 涨跌幅 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">涨跌幅</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐⭐</span>
+                </div>
+                <p className={`text-2xl font-bold ${(indexInfo.change_percent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(indexInfo.change_percent ?? 0) >= 0 ? '+' : ''}{indexInfo.change_percent?.toFixed(2) || 0}%
+                </p>
+                <p className="text-xs text-gray-400">今天赚还是亏</p>
+              </div>
+
+              {/* 涨跌额 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">涨跌额</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐</span>
+                </div>
+                <p className={`text-2xl font-bold ${(indexInfo.change_value ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(indexInfo.change_value ?? 0) >= 0 ? '+' : ''}{indexInfo.change_value?.toFixed(2) || 0}
+                </p>
+                <p className="text-xs text-gray-400">涨跌了多少点</p>
+              </div>
+
+              {/* 成交量 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">成交量</p>
+                  <span className="text-xs text-yellow-600">⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">
+                  {indexInfo.volume ? (indexInfo.volume / 100000000).toFixed(2) + '亿' : '--'}
+                </p>
+                <p className="text-xs text-gray-400">今天多少人交易</p>
+              </div>
+
+              {/* 成交额 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">成交额</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">
+                  {indexInfo.turnover ? (indexInfo.turnover / 100000000).toFixed(2) + '亿' : '--'}
+                </p>
+                <p className="text-xs text-gray-400">资金活跃度</p>
+              </div>
+
+              {/* 振幅 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">振幅</p>
+                  <span className="text-xs text-yellow-600">⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">
+                  {getAmplitude()?.toFixed(2) || '--'}%
+                </p>
+                <p className="text-xs text-gray-400">市场激烈程度</p>
+              </div>
+
+              {/* 52周高低 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">52周高/低</p>
+                  <span className="text-xs text-yellow-600">⭐⭐</span>
+                </div>
+                <p className="text-lg font-bold text-gray-900">
+                  {get52WeekHighLow().high?.toFixed(0) || '--'} / {get52WeekHighLow().low?.toFixed(0) || '--'}
+                </p>
+                <p className="text-xs text-gray-400">一年内最高最低</p>
+              </div>
+
+              {/* 年初至今涨跌幅 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">年初至今</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐</span>
+                </div>
+                <p className={`text-xl font-bold ${(getYearToDateReturn() ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {(() => {
+                    const ytd = getYearToDateReturn();
+                    return ytd !== null ? 
+                      `${ytd >= 0 ? '+' : ''}${ytd.toFixed(2)}%` : 
+                      '--';
+                  })()}
+                </p>
+                <p className="text-xs text-gray-400">今年表现如何</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 估值数据 */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-4">估值数据</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {/* 市盈率 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">市盈率(PE)</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">
+                  {indexInfo.pe_ratio?.toFixed(2) || '--'}
+                </p>
+                <p className="text-xs text-gray-400">估值贵不贵</p>
+              </div>
+
+              {/* 市净率 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">市净率(PB)</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">
+                  {indexInfo.pb_ratio?.toFixed(2) || '--'}
+                </p>
+                <p className="text-xs text-gray-400">资产估值参考</p>
+              </div>
+
+              {/* 股息率 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">股息率</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">
+                  {indexInfo.dividend_yield ? indexInfo.dividend_yield.toFixed(2) + '%' : '--'}
+                </p>
+                <p className="text-xs text-gray-400">能不能吃利息</p>
+              </div>
+
+              {/* 估值分位数 */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm text-gray-500">估值分位数</p>
+                  <span className="text-xs text-yellow-600">⭐⭐⭐⭐</span>
+                </div>
+                <p className="text-xl font-bold text-gray-900">--</p>
+                <p className="text-xs text-gray-400">历史估值位置</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 统计数据 */}
+          {historyData.statistics && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
               <h3 className="text-lg font-semibold mb-4">统计数据</h3>
-              <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 {historyData.statistics.total_return !== undefined && (
                   <div>
                     <p className="text-sm text-gray-500">总收益率</p>
-                    <p className={`text-2xl font-bold ${historyData.statistics.total_return >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <p className={`text-xl font-bold ${historyData.statistics.total_return >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {historyData.statistics.total_return >= 0 ? '+' : ''}{historyData.statistics.total_return.toFixed(2)}%
                     </p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
-                  {historyData.statistics.max_value !== undefined && (
-                    <div>
-                      <p className="text-sm text-gray-500">最高点</p>
-                      <p className="font-semibold">{historyData.statistics.max_value.toFixed(2)}</p>
-                    </div>
-                  )}
-                  {historyData.statistics.min_value !== undefined && (
-                    <div>
-                      <p className="text-sm text-gray-500">最低点</p>
-                      <p className="font-semibold">{historyData.statistics.min_value.toFixed(2)}</p>
-                    </div>
-                  )}
-                </div>
                 {historyData.statistics.volatility !== undefined && (
                   <div>
                     <p className="text-sm text-gray-500">波动率</p>
-                    <p className="font-semibold">{historyData.statistics.volatility.toFixed(2)}%</p>
+                    <p className="text-xl font-bold">{historyData.statistics.volatility.toFixed(2)}%</p>
                   </div>
                 )}
-                {historyData.statistics.avg_volume !== undefined && (
+                {historyData.statistics.max_value !== undefined && (
                   <div>
-                    <p className="text-sm text-gray-500">平均成交量</p>
-                    <p className="font-semibold">
-                      {(historyData.statistics.avg_volume / 100000000).toFixed(2)} 亿
-                    </p>
+                    <p className="text-sm text-gray-500">最高点</p>
+                    <p className="text-xl font-bold">{historyData.statistics.max_value.toFixed(2)}</p>
+                  </div>
+                )}
+                {historyData.statistics.min_value !== undefined && (
+                  <div>
+                    <p className="text-sm text-gray-500">最低点</p>
+                    <p className="text-xl font-bold">{historyData.statistics.min_value.toFixed(2)}</p>
                   </div>
                 )}
               </div>
@@ -246,42 +397,43 @@ export default function IndexAnalysisPage() {
           )}
 
           {/* 最新交易数据 */}
-          {historyData && historyData.data && historyData.data.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-4">最新交易数据</h3>
-              <div className="space-y-3">
-                {historyData.data.slice(-5).reverse().map((point, index) => (
-                  <div key={index} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
-                    <div>
-                      <p className="text-sm font-medium">{point.date}</p>
-                      <p className="text-xs text-gray-500">
-                        开: {point.open_value.toFixed(2)} | 高: {point.high_value.toFixed(2)} | 低: {point.low_value.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{point.close_value.toFixed(2)}</p>
-                      <p className={`text-sm ${(point.change_percent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">最新交易数据</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">日期</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">开盘</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">最高</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">最低</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">收盘</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">涨跌幅</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">成交量</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyData.data.slice(-10).reverse().map((point, index) => (
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-sm">{point.date}</td>
+                      <td className="py-3 px-4 text-sm text-right">{point.open_value.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-sm text-right">{point.high_value.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-sm text-right">{point.low_value.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-sm text-right font-medium">{point.close_value.toFixed(2)}</td>
+                      <td className={`py-3 px-4 text-sm text-right font-medium ${(point.change_percent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {(point.change_percent ?? 0) >= 0 ? '+' : ''}{(point.change_percent ?? 0).toFixed(2)}%
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right">
+                        {point.volume ? (point.volume / 100000000).toFixed(2) + '亿' : '--'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-
-          {/* 操作提示 */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">使用提示</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• 将鼠标悬停在图表上查看详细数据</li>
-              <li>• 选择不同时间范围分析趋势</li>
-              <li>• 支持查询A股主要指数</li>
-            </ul>
           </div>
-        </div>
-      </div>
-
+        </>
+      )}
     </div>
   );
 } 

@@ -175,6 +175,48 @@ class IndexService:
             if not base_info:
                 return None
             
+            # 尝试获取实时数据
+            try:
+                # 获取指数实时行情数据
+                df = ak.index_zh_a_hist(symbol=index_code, period="daily", start_date="", end_date="")
+                if not df.empty:
+                    latest_data = df.iloc[-1]
+                    
+                    # 获取前一天的收盘价来计算涨跌
+                    prev_close = df.iloc[-2]['收盘'] if len(df) > 1 else latest_data['收盘']
+                    current_value = float(latest_data['收盘'])
+                    change_value = current_value - prev_close
+                    change_percent = (change_value / prev_close * 100) if prev_close > 0 else 0
+                    
+                    # 计算振幅
+                    high_value = float(latest_data['最高'])
+                    low_value = float(latest_data['最低'])
+                    amplitude = ((high_value - low_value) / low_value * 100) if low_value > 0 else 0
+                    
+                    return IndexInfo(
+                        code=index_code,
+                        name=base_info.name,
+                        market=base_info.market,
+                        category=base_info.category,
+                        index_type=base_info.index_type,
+                        base_date="2004-12-31",
+                        base_value=1000.0,
+                        current_value=current_value,
+                        change_value=change_value,
+                        change_percent=change_percent,
+                        volume=int(latest_data.get('成交量', 0)),
+                        turnover=float(latest_data.get('成交额', 0)),
+                        amplitude=amplitude,
+                        # 估值数据暂时使用模拟值，后续可以接入真实数据源
+                        pe_ratio=15.5,
+                        pb_ratio=1.8,
+                        dividend_yield=2.3,
+                        last_update=datetime.now()
+                    )
+            except Exception as e:
+                logger.warning(f"获取实时数据失败，使用模拟数据: {e}")
+            
+            # 如果获取失败，返回模拟数据
             return IndexInfo(
                 code=index_code,
                 name=base_info.name,
@@ -187,6 +229,11 @@ class IndexService:
                 change_value=10.5,
                 change_percent=0.35,
                 volume=125000000,
+                turnover=8500000000,
+                amplitude=1.2,
+                pe_ratio=15.5,
+                pb_ratio=1.8,
+                dividend_yield=2.3,
                 last_update=datetime.now()
             )
         except Exception as e:

@@ -8,14 +8,16 @@ export interface IndexInfo {
   index_type?: string;
   base_date?: string;
   base_value?: number;
-  current_value?: number;
-  change_percent?: number;
-  change_value?: number;
-  volume?: number;
-  turnover?: number;
-  pe_ratio?: number;
-  pb_ratio?: number;
-  dividend_yield?: number;
+  current_value: number | null;
+  change_value: number | null;
+  change_percent: number | null;
+  volume: number | null;           // 成交量
+  turnover: number | null;         // 成交额
+  amplitude?: number | null;       // 振幅
+  pe_ratio?: number | null;        // 市盈率
+  pb_ratio?: number | null;        // 市净率
+  dividend_yield?: number | null;  // 股息率
+  valuation_percentile?: number | null; // 估值分位数
   constituent_count?: number;
   last_update?: string;
 }
@@ -32,17 +34,31 @@ export interface IndexDataPoint {
   change_percent?: number;
 }
 
+export interface IndexHistoryPoint {
+  date: string;
+  open_value: number;
+  high_value: number;
+  low_value: number;
+  close_value: number;
+  volume: number | null;
+  turnover: number | null;
+  change_value?: number | null;
+  change_percent?: number | null;
+}
+
+export interface IndexStatistics {
+  total_return?: number;
+  volatility?: number;
+  max_value?: number;
+  min_value?: number;
+  avg_volume?: number;
+}
+
 export interface IndexHistoryData {
   code: string;
   name: string;
-  data: IndexDataPoint[];
-  statistics?: {
-    total_return?: number;
-    volatility?: number;
-    max_value?: number;
-    min_value?: number;
-    avg_volume?: number;
-  };
+  data: IndexHistoryPoint[];
+  statistics?: IndexStatistics;
 }
 
 export interface TimeRange {
@@ -73,8 +89,8 @@ export interface ChartData {
 
 export interface ApiResponse<T> {
   success: boolean;
-  data: T;
-  message: string;
+  data?: T;
+  message?: string;
 }
 
 export interface IndexAnalysisState {
