@@ -18,18 +18,44 @@ def get_index_service() -> IndexService:
 
 @router.get("/list", response_model=IndexListResponse)
 async def get_index_list(
+    size: int = Query(50, description="返回数量"),
     service: IndexService = Depends(get_index_service)
 ):
     """获取支持的指数列表"""
     try:
         indices = await service.get_available_indices()
+        # 限制返回数量
+        total = len(indices)
+        if size > 0:
+            indices = indices[:size]
+        
         return IndexListResponse(
             success=True,
             data=indices,
+            total=total,
+            page=1,
+            size=len(indices),
             message="获取指数列表成功"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取指数列表失败: {str(e)}")
+
+@router.get("/search")
+async def search_indices(
+    keyword: str = Query(..., description="搜索关键词"),
+    size: int = Query(10, description="返回数量"),
+    service: IndexService = Depends(get_index_service)
+):
+    """搜索指数"""
+    try:
+        indices = await service.search_indices(keyword, size)
+        return {
+            "success": True,
+            "data": indices,
+            "message": "搜索指数成功"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"搜索指数失败: {str(e)}")
 
 @router.get("/{index_code}", response_model=IndexInfo)
 async def get_index_info(
@@ -37,6 +63,20 @@ async def get_index_info(
     service: IndexService = Depends(get_index_service)
 ):
     """获取指定指数的基本信息"""
+    try:
+        index_info = await service.get_index_info(index_code)
+        if not index_info:
+            raise HTTPException(status_code=404, detail="指数不存在")
+        return index_info
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取指数信息失败: {str(e)}")
+
+@router.get("/{index_code}/info", response_model=IndexInfo)
+async def get_index_info_detailed(
+    index_code: str,
+    service: IndexService = Depends(get_index_service)
+):
+    """获取指定指数的详细信息（与get_index_info相同，为了兼容前端调用）"""
     try:
         index_info = await service.get_index_info(index_code)
         if not index_info:
